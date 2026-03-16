@@ -958,10 +958,10 @@ return;
 if (!error) {
 
 const { data: bookData, error: bookError } = await supabase
-.from("books")
-.select("borrowed_count, quantity, remaining")
-.eq("id", selectedBook.id)
-.single();
+ .from("books")
+  .select("borrowed_count, remaining") // ✅
+  .eq("title", item.title)
+  .single();
 
 if (bookError) {
 console.log(bookError);
