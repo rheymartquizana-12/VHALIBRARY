@@ -265,7 +265,7 @@ if (quantity < 1) {
 Alert.alert("Invalid Quantity", "Quantity must be at least 1.");
 return;
 }
-if (bookDetails.remaining !== undefined && quantity > bookDetails.remaining) {
+if (bookDetails.remaining !== 50 && quantity > bookDetails.remaining) {
 Alert.alert("Quantity Exceeded", `Only ${bookDetails.remaining} copies available.`);
 return;
 }
@@ -358,8 +358,6 @@ autoCapitalize="characters"
 {/* Date (User Input with Icon) */}
 <View style={modalStyles.inputGroup}>
 <Text style={modalStyles.label}>Date</Text>
-
-{/* Container for Input + Icon */}
 <TouchableOpacity
 style={editModalStyles.dateRow}
 onPress={() => setShowPicker(true)}
@@ -370,7 +368,6 @@ activeOpacity={0.7}
 </Text>
 <Ionicons name="calendar" size={18} color="#333" />
 </TouchableOpacity>
-
 {showPicker && (
   <DateTimePicker
     value={date}
@@ -910,12 +907,6 @@ setModalVisible(true);
 const handleConfirmBorrow = async (formData) => {
 try {
 const { fullName, section, date, quantity } = formData;
-console.log("BOOK DETAILS:", selectedBook);
-console.log("FULL NAME:", fullName);
-console.log("SECTION:", section);
-console.log("DATE:", date);
-console.log("QUANTITY:", quantity);
-
 const formatDateForDB = (inputDate) => {
 const [month, day, year] = inputDate.split("/");
 return new Date(
@@ -959,7 +950,7 @@ if (!error) {
 
 const { data: bookData, error: bookError } = await supabase
  .from("books")
-  .select("borrowed_count, remaining") // ✅
+  .select("borrowed_count, quantity") // ❌ quantity wala pa
   .eq("title", item.title)
   .single();
 
@@ -2370,3 +2361,140 @@ fontSize: 14,
 fontWeight: '600',
 },
 });
+
+// ========== REMAINING COPIES BADGE COMPONENT ==========
+function RemainingBadge({ remaining, total = remaining }) {
+  const isAvailable = remaining > 0;
+  
+  return (
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 16,
+      backgroundColor: isAvailable ? '#E8F5E9' : '#FFEBEE',
+      alignSelf: 'flex-start',
+    }}>
+      <Ionicons 
+        name={isAvailable ? "checkmark-circle" : "close-circle"} 
+        size={16} 
+        color={isAvailable ? '#4CAF50' : '#f44336'} 
+      />
+      <Text style={{
+        marginLeft: 6,
+        fontWeight: '700',
+        fontSize: 12,
+        color: isAvailable ? '#2E7D32' : '#C62828',
+      }}>
+        {isAvailable ? `${remaining} Available` : 'UNAVAILABLE'}
+      </Text>
+    </View>
+  );
+}
+
+// ========== AVAILABILITY INFO COMPONENT ==========
+function AvailabilityInfo({ remaining, borrowed_count, total_copies }) {
+  const percentage = total_copies > 0 ? (remaining / total_copies) * 100 : 0;
+  
+  return (
+    <View style={{
+      backgroundColor: '#f8f9fb',
+      borderRadius: 12,
+      padding: 14,
+      marginVertical: 10,
+    }}>
+      {/* Header */}
+      <Text style={{
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#888',
+        textTransform: 'uppercase',
+        marginBottom: 10,
+        letterSpacing: 0.5,
+      }}>
+        Availability Status
+      </Text>
+
+      {/* Total & Info Row */}
+      <View style={{
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+      }}>
+        <View>
+          <Text style={{
+            fontSize: 11,
+            color: '#666',
+            marginBottom: 4,
+          }}>
+            Total Copies
+          </Text>
+          <Text style={{
+            fontSize: 16,
+            fontWeight: '700',
+            color: '#1a1a2e',
+          }}>
+            {total_copies || 0}
+          </Text>
+        </View>
+
+        <View>
+          <Text style={{
+            fontSize: 11,
+            color: '#666',
+            marginBottom: 4,
+          }}>
+            Borrowed
+          </Text>
+          <Text style={{
+            fontSize: 16,
+            fontWeight: '700',
+            color: '#f57c00',
+          }}>
+            {borrowed_count || 0}
+          </Text>
+        </View>
+
+        <View>
+          <Text style={{
+            fontSize: 11,
+            color: '#666',
+            marginBottom: 4,
+          }}>
+            Remaining
+          </Text>
+          <Text style={{
+            fontSize: 16,
+            fontWeight: '700',
+            color: remaining > 0 ? '#4CAF50' : '#d32f2f',
+          }}>
+            {remaining || 0}
+          </Text>
+        </View>
+      </View>
+
+      {/* Progress Bar */}
+      <View style={{
+        height: 6,
+        backgroundColor: '#ddd',
+        borderRadius: 3,
+        overflow: 'hidden',
+      }}>
+        <View style={{
+          height: '100%',
+          width: `${percentage}%`,
+          backgroundColor: remaining > 0 ? '#4CAF50' : '#d32f2f',
+        }} />
+      </View>
+
+      {/* Status Text */}
+      <Text style={{
+        fontSize: 12,
+        color: '#666',
+        marginTop: 8,
+        fontWeight: '500',
+      }}>
+        {remaining > 0 
+          ? `${percentage.toFixed(0)}% available (${remaining} out of ${total_copies} copies)` 
+          : 'No copies available. Check back later!'}
