@@ -4,12 +4,12 @@
     "slug": "cuterheymart",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "../assets/VHA_Library_icon.png",
+    "icon": "./assets/VHA_Library_icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "cuterheymart",
     "splash": {
-      "image": "../assets/VHA_Library_icon.png",
+      "image": "./assets/VHA_Library_icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -18,14 +18,14 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "../assets/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.cuterheymart"
     },
     "web": {
-      "favicon": "../assets/favicon.png"
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "@react-native-community/datetimepicker"

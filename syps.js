@@ -957,30 +957,32 @@ return;
 }
 if (!error) {
 
-const { data: bookData, error: bookError } = await supabase
-.from("books")
-.select("borrowed_count, quantity, remaining")
-.eq("id", selectedBook.id)
-.single();
+                const { data: bookData, error: bookError } = await supabase
+                  .from("books")
+                  .select("borrowed_count, quantity, remaining, total_copies")
+                  .eq("id", selectedBook.id)
+                  .single();
 
-if (bookError) {
-console.log(bookError);
-return;
-}
+                if (bookError) {
+                  console.log(bookError);
+                  return;
+                }
 
-const newBorrowed = bookData.borrowed_count + quantity;
-const newRemaining = bookData.quantity - newBorrowed;
-const { error: updateError } = await supabase
-.from("books")
-.update({
-borrowed_count: newBorrowed,
-remaining: newRemaining
-})
-.eq("id", selectedBook.id);
+                // safe defaults and support `total_copies` fallback
+                const currentBorrowed = bookData?.borrowed_count || 0;
+                const total = bookData?.total_copies ?? bookData?.quantity ?? 0;
+                const newBorrowed = currentBorrowed + quantity;
+                const newRemaining = Math.max(0, total - newBorrowed);
 
-if (updateError) {
-console.log(updateError);
-}
+                const { error: updateError } = await supabase
+                  .from("books")
+                  .update({
+                    borrowed_count: newBorrowed,
+                    remaining: newRemaining
+                  })
+                  .eq("id", selectedBook.id);
+
+                if (updateError) console.log(updateError);
 }
 setBorrowed([...borrowed, selectedBook.title]);
 
@@ -1204,30 +1206,31 @@ return;
 
 if (!error) {
 const { data: bookData, error: bookError } = await supabase
-.from("books")
-.select("borrowed_count, quantity, remaining")
-.eq("id", selectedBook.id)
-.single();
+  .from("books")
+  .select("borrowed_count, quantity, remaining, total_copies")
+  .eq("id", selectedBook.id)
+  .single();
 
 if (bookError) {
-console.log(bookError);
-return;
+  console.log(bookError);
+  return;
 }
 
-const newBorrowed = bookData.borrowed_count + quantity;
-const newRemaining = bookData.quantity - newBorrowed;
+// safe defaults and support `total_copies` fallback
+const currentBorrowed = bookData?.borrowed_count || 0;
+const total = bookData?.total_copies ?? bookData?.quantity ?? 0;
+const newBorrowed = currentBorrowed + quantity;
+const newRemaining = Math.max(0, total - newBorrowed);
 
 const { error: updateError } = await supabase
-.from("books")
-.update({
-borrowed_count: newBorrowed,
-remaining: newRemaining
-})
-.eq("id", selectedBook.id);
+  .from("books")
+  .update({
+    borrowed_count: newBorrowed,
+    remaining: newRemaining
+  })
+  .eq("id", selectedBook.id);
 
-if (updateError) {
-console.log(updateError);
-}
+if (updateError) console.log(updateError);
 }
 
 setBorrowed([...borrowed, selectedBook.title]);
@@ -1390,29 +1393,32 @@ return;
 }
 
 const { data: bookData, error: bookError } = await supabase
-.from("books")
-.select("borrowed_count, quantity")
-.eq("title", item.title)
-.single();
+  .from("books")
+  .select("borrowed_count, quantity, total_copies, remaining")
+  .eq("title", item.title)
+  .single();
 
 if (bookError) {
-console.log(bookError);
-return;
+  console.log(bookError);
+  return;
 }
 
-const newBorrowed = bookData.borrowed_count - 1;
-const newRemaining = bookData.quantity - newBorrowed;
+// subtract by the quantity on the borrow record
+const returnQty = item?.quantity || 1;
+const currentBorrowed = bookData?.borrowed_count || 0;
+const total = bookData?.total_copies ?? bookData?.quantity ?? 0;
+
+const newBorrowed = Math.max(0, currentBorrowed - returnQty);
+const newRemaining = Math.max(0, total - newBorrowed);
 const { error: updateError } = await supabase
-.from("books")
-.update({
-borrowed_count: newBorrowed,
-remaining: newRemaining
-})
-.eq("title", item.title);
+  .from("books")
+  .update({
+    borrowed_count: newBorrowed,
+    remaining: newRemaining
+  })
+  .eq("title", item.title);
 
-if (updateError) {
-console.log(updateError);
-}
+if (updateError) console.log(updateError);
 const time = new Date().toLocaleTimeString('en-PH', {
 timeZone: 'Asia/Manila',
 hour: "2-digit",
@@ -1434,30 +1440,53 @@ Alert.alert("Success", "Book returned!");
 };
 
 const handleDelete = async (item) => {
-const { error } = await supabase
-.from("borrow_books")
-.delete()
-.eq("id", item.id);
+// adjust book counts before deleting the borrow record
+try {
+  const { data: bookData, error: bookError } = await supabase
+    .from("books")
+    .select("borrowed_count, quantity, total_copies, remaining")
+    .eq("title", item.title)
+    .single();
 
-if (!error) {
-const time = new Date().toLocaleTimeString('en-PH', {
-timeZone: 'Asia/Manila',
-hour: "2-digit",
-minute: "2-digit",
-});
+  if (!bookError && bookData) {
+    const currentBorrowed = bookData?.borrowed_count || 0;
+    const total = bookData?.total_copies ?? bookData?.quantity ?? 0;
+    const delta = item?.quantity || 1;
+    const newBorrowed = Math.max(0, currentBorrowed - delta);
+    const newRemaining = Math.max(0, total - newBorrowed);
 
-setNotifications((prev) => [
-{
-type: "info",
-title: "Record Deleted",
-message: `Record for "${item.title}" has been removed`,
-time,
-},
-...prev,
-]);
+    const { error: updateError } = await supabase
+      .from("books")
+      .update({ borrowed_count: newBorrowed, remaining: newRemaining })
+      .eq("title", item.title);
 
-fetchBorrowedBooks();
-Alert.alert("Deleted", "Record removed");
+    if (updateError) console.log(updateError);
+  }
+
+  const { error } = await supabase.from("borrow_books").delete().eq("id", item.id);
+
+  if (!error) {
+    const time = new Date().toLocaleTimeString('en-PH', {
+      timeZone: 'Asia/Manila',
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    setNotifications((prev) => [
+      {
+        type: "info",
+        title: "Record Deleted",
+        message: `Record for "${item.title}" has been removed`,
+        time,
+      },
+      ...prev,
+    ]);
+
+    fetchBorrowedBooks();
+    Alert.alert("Deleted", "Record removed");
+  }
+} catch (err) {
+  console.log(err);
 }
 };
 const formatDate = (dateString) => {
