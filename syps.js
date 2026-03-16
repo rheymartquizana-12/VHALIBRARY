@@ -1205,7 +1205,7 @@ return;
 if (!error) {
 const { data: bookData, error: bookError } = await supabase
 .from("books")
-.select("borrowed_count, quantity, remaining")
+.select("borrowed_count, remaining")
 .eq("id", selectedBook.id)
 .single();
 
