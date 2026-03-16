@@ -969,7 +969,7 @@ return;
 }
 
 const newBorrowed = bookData.borrowed_count + quantity;
-const newRemaining = bookData.quantity - newBorrowed;
+const newRemaining = bookData.remaining - quantity; // ✅ direktang ibabawas sa remaining
 const { error: updateError } = await supabase
 .from("books")
 .update({
