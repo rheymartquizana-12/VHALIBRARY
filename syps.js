@@ -910,12 +910,6 @@ setModalVisible(true);
 const handleConfirmBorrow = async (formData) => {
 try {
 const { fullName, section, date, quantity } = formData;
-console.log("BOOK DETAILS:", selectedBook);
-console.log("FULL NAME:", fullName);
-console.log("SECTION:", section);
-console.log("DATE:", date);
-console.log("QUANTITY:", quantity);
-
 const formatDateForDB = (inputDate) => {
 const [month, day, year] = inputDate.split("/");
 return new Date(
@@ -933,7 +927,6 @@ if (userError || !user) {
 Alert.alert("Error", "You must be logged in.");
 return;
 }
-
 const { data, error } = await supabase
 .from("borrow_books")
 .insert([
@@ -955,34 +948,37 @@ console.log("Supabase insert error:", error);
 Alert.alert("Error", "Failed to borrow book.");
 return;
 }
+
 if (!error) {
+  const { data: bookData, error: bookError } = await supabase
+    .from("books")
+    .select("borrowed_count, quantity, remaining, total_copies")
+    .eq("id", selectedBook.id)
+    .single();
 
-                const { data: bookData, error: bookError } = await supabase
-                  .from("books")
-                  .select("borrowed_count, quantity, remaining, total_copies")
-                  .eq("id", selectedBook.id)
-                  .single();
+  if (bookError) {
+    console.log(bookError);
+    return;
+  }
 
-                if (bookError) {
-                  console.log(bookError);
-                  return;
-                }
+  // Safe defaults: handle null values
+  const currentBorrowed = bookData?.borrowed_count || 0;
+  const totalCopies = bookData?.total_copies ?? bookData?.quantity ?? 0;
+  
+  const newBorrowed = currentBorrowed + quantity;
+  const newRemaining = Math.max(0, totalCopies - newBorrowed);
+  
+  const { error: updateError } = await supabase
+    .from("books")
+    .update({
+      borrowed_count: newBorrowed,
+      remaining: newRemaining
+    })
+    .eq("id", selectedBook.id);
 
-                // safe defaults and support `total_copies` fallback
-                const currentBorrowed = bookData?.borrowed_count || 0;
-                const total = bookData?.total_copies ?? bookData?.quantity ?? 0;
-                const newBorrowed = currentBorrowed + quantity;
-                const newRemaining = Math.max(0, total - newBorrowed);
-
-                const { error: updateError } = await supabase
-                  .from("books")
-                  .update({
-                    borrowed_count: newBorrowed,
-                    remaining: newRemaining
-                  })
-                  .eq("id", selectedBook.id);
-
-                if (updateError) console.log(updateError);
+  if (updateError) {
+    console.log(updateError);
+  }
 }
 setBorrowed([...borrowed, selectedBook.title]);
 
@@ -1205,34 +1201,36 @@ return;
 }
 
 if (!error) {
-const { data: bookData, error: bookError } = await supabase
-  .from("books")
-  .select("borrowed_count, quantity, remaining, total_copies")
-  .eq("id", selectedBook.id)
-  .single();
+  const { data: bookData, error: bookError } = await supabase
+    .from("books")
+    .select("borrowed_count, quantity, remaining, total_copies")
+    .eq("id", selectedBook.id)
+    .single();
 
-if (bookError) {
-  console.log(bookError);
-  return;
+  if (bookError) {
+    console.log(bookError);
+    return;
+  }
+
+  // Safe defaults: handle null values
+  const currentBorrowed = bookData?.borrowed_count || 0;
+  const totalCopies = bookData?.total_copies ?? bookData?.quantity ?? 0;
+  
+  const newBorrowed = currentBorrowed + quantity;
+  const newRemaining = Math.max(0, totalCopies - newBorrowed);
+  
+  const { error: updateError } = await supabase
+    .from("books")
+    .update({
+      borrowed_count: newBorrowed,
+      remaining: newRemaining
+    })
+    .eq("id", selectedBook.id);
+
+  if (updateError) {
+    console.log(updateError);
+  }
 }
-
-// safe defaults and support `total_copies` fallback
-const currentBorrowed = bookData?.borrowed_count || 0;
-const total = bookData?.total_copies ?? bookData?.quantity ?? 0;
-const newBorrowed = currentBorrowed + quantity;
-const newRemaining = Math.max(0, total - newBorrowed);
-
-const { error: updateError } = await supabase
-  .from("books")
-  .update({
-    borrowed_count: newBorrowed,
-    remaining: newRemaining
-  })
-  .eq("id", selectedBook.id);
-
-if (updateError) console.log(updateError);
-}
-
 setBorrowed([...borrowed, selectedBook.title]);
 
 const time = new Date().toLocaleTimeString('en-PH', {
@@ -1394,7 +1392,7 @@ return;
 
 const { data: bookData, error: bookError } = await supabase
   .from("books")
-  .select("borrowed_count, quantity, total_copies, remaining")
+  .select("borrowed_count, quantity, remaining, total_copies")
   .eq("title", item.title)
   .single();
 
@@ -1403,13 +1401,14 @@ if (bookError) {
   return;
 }
 
-// subtract by the quantity on the borrow record
+// Safe defaults: subtract by the quantity in the borrow record
 const returnQty = item?.quantity || 1;
 const currentBorrowed = bookData?.borrowed_count || 0;
-const total = bookData?.total_copies ?? bookData?.quantity ?? 0;
+const totalCopies = bookData?.total_copies ?? bookData?.quantity ?? 0;
 
 const newBorrowed = Math.max(0, currentBorrowed - returnQty);
-const newRemaining = Math.max(0, total - newBorrowed);
+const newRemaining = Math.max(0, totalCopies - newBorrowed);
+
 const { error: updateError } = await supabase
   .from("books")
   .update({
@@ -1418,7 +1417,9 @@ const { error: updateError } = await supabase
   })
   .eq("title", item.title);
 
-if (updateError) console.log(updateError);
+if (updateError) {
+  console.log(updateError);
+}
 const time = new Date().toLocaleTimeString('en-PH', {
 timeZone: 'Asia/Manila',
 hour: "2-digit",
@@ -1440,7 +1441,7 @@ Alert.alert("Success", "Book returned!");
 };
 
 const handleDelete = async (item) => {
-// adjust book counts before deleting the borrow record
+// Adjust book counts before deleting the borrow record
 try {
   const { data: bookData, error: bookError } = await supabase
     .from("books")
@@ -1450,10 +1451,10 @@ try {
 
   if (!bookError && bookData) {
     const currentBorrowed = bookData?.borrowed_count || 0;
-    const total = bookData?.total_copies ?? bookData?.quantity ?? 0;
+    const totalCopies = bookData?.total_copies ?? bookData?.quantity ?? 0;
     const delta = item?.quantity || 1;
     const newBorrowed = Math.max(0, currentBorrowed - delta);
-    const newRemaining = Math.max(0, total - newBorrowed);
+    const newRemaining = Math.max(0, totalCopies - newBorrowed);
 
     const { error: updateError } = await supabase
       .from("books")
@@ -1463,7 +1464,10 @@ try {
     if (updateError) console.log(updateError);
   }
 
-  const { error } = await supabase.from("borrow_books").delete().eq("id", item.id);
+  const { error } = await supabase
+    .from("borrow_books")
+    .delete()
+    .eq("id", item.id);
 
   if (!error) {
     const time = new Date().toLocaleTimeString('en-PH', {
@@ -1709,7 +1713,7 @@ fontWeight: "700",
 },
 buttonRow: {
 flexDirection: "row",
-gap: 8,
+justifyContent: "space-between",
 marginTop: 16,
 },
 returnBtn: {
