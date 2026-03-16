@@ -910,6 +910,12 @@ setModalVisible(true);
 const handleConfirmBorrow = async (formData) => {
 try {
 const { fullName, section, date, quantity } = formData;
+console.log("BOOK DETAILS:", selectedBook);
+console.log("FULL NAME:", fullName);
+console.log("SECTION:", section);
+console.log("DATE:", date);
+console.log("QUANTITY:", quantity);
+
 const formatDateForDB = (inputDate) => {
 const [month, day, year] = inputDate.split("/");
 return new Date(
@@ -927,6 +933,7 @@ if (userError || !user) {
 Alert.alert("Error", "You must be logged in.");
 return;
 }
+
 const { data, error } = await supabase
 .from("borrow_books")
 .insert([
@@ -948,37 +955,32 @@ console.log("Supabase insert error:", error);
 Alert.alert("Error", "Failed to borrow book.");
 return;
 }
-
 if (!error) {
-  const { data: bookData, error: bookError } = await supabase
-    .from("books")
-    .select("borrowed_count, quantity, remaining, total_copies")
-    .eq("id", selectedBook.id)
-    .single();
 
-  if (bookError) {
-    console.log(bookError);
-    return;
-  }
+const { data: bookData, error: bookError } = await supabase
+.from("books")
+.select("borrowed_count, quantity, remaining")
+.eq("id", selectedBook.id)
+.single();
 
-  // Safe defaults: handle null values
-  const currentBorrowed = bookData?.borrowed_count || 0;
-  const totalCopies = bookData?.total_copies ?? bookData?.quantity ?? 0;
-  
-  const newBorrowed = currentBorrowed + quantity;
-  const newRemaining = Math.max(0, totalCopies - newBorrowed);
-  
-  const { error: updateError } = await supabase
-    .from("books")
-    .update({
-      borrowed_count: newBorrowed,
-      remaining: newRemaining
-    })
-    .eq("id", selectedBook.id);
+if (bookError) {
+console.log(bookError);
+return;
+}
 
-  if (updateError) {
-    console.log(updateError);
-  }
+const newBorrowed = bookData.borrowed_count + quantity;
+const newRemaining = bookData.quantity - newBorrowed;
+const { error: updateError } = await supabase
+.from("books")
+.update({
+borrowed_count: newBorrowed,
+remaining: newRemaining
+})
+.eq("id", selectedBook.id);
+
+if (updateError) {
+console.log(updateError);
+}
 }
 setBorrowed([...borrowed, selectedBook.title]);
 
@@ -1201,36 +1203,33 @@ return;
 }
 
 if (!error) {
-  const { data: bookData, error: bookError } = await supabase
-    .from("books")
-    .select("borrowed_count, quantity, remaining, total_copies")
-    .eq("id", selectedBook.id)
-    .single();
+const { data: bookData, error: bookError } = await supabase
+.from("books")
+.select("borrowed_count, quantity, remaining")
+.eq("id", selectedBook.id)
+.single();
 
-  if (bookError) {
-    console.log(bookError);
-    return;
-  }
-
-  // Safe defaults: handle null values
-  const currentBorrowed = bookData?.borrowed_count || 0;
-  const totalCopies = bookData?.total_copies ?? bookData?.quantity ?? 0;
-  
-  const newBorrowed = currentBorrowed + quantity;
-  const newRemaining = Math.max(0, totalCopies - newBorrowed);
-  
-  const { error: updateError } = await supabase
-    .from("books")
-    .update({
-      borrowed_count: newBorrowed,
-      remaining: newRemaining
-    })
-    .eq("id", selectedBook.id);
-
-  if (updateError) {
-    console.log(updateError);
-  }
+if (bookError) {
+console.log(bookError);
+return;
 }
+
+const newBorrowed = bookData.borrowed_count + quantity;
+const newRemaining = bookData.quantity - newBorrowed;
+
+const { error: updateError } = await supabase
+.from("books")
+.update({
+borrowed_count: newBorrowed,
+remaining: newRemaining
+})
+.eq("id", selectedBook.id);
+
+if (updateError) {
+console.log(updateError);
+}
+}
+
 setBorrowed([...borrowed, selectedBook.title]);
 
 const time = new Date().toLocaleTimeString('en-PH', {
@@ -1391,34 +1390,28 @@ return;
 }
 
 const { data: bookData, error: bookError } = await supabase
-  .from("books")
-  .select("borrowed_count, quantity, remaining, total_copies")
-  .eq("title", item.title)
-  .single();
+.from("books")
+.select("borrowed_count, quantity")
+.eq("title", item.title)
+.single();
 
 if (bookError) {
-  console.log(bookError);
-  return;
+console.log(bookError);
+return;
 }
 
-// Safe defaults: subtract by the quantity in the borrow record
-const returnQty = item?.quantity || 1;
-const currentBorrowed = bookData?.borrowed_count || 0;
-const totalCopies = bookData?.total_copies ?? bookData?.quantity ?? 0;
-
-const newBorrowed = Math.max(0, currentBorrowed - returnQty);
-const newRemaining = Math.max(0, totalCopies - newBorrowed);
-
+const newBorrowed = bookData.borrowed_count - 1;
+const newRemaining = bookData.quantity - newBorrowed;
 const { error: updateError } = await supabase
-  .from("books")
-  .update({
-    borrowed_count: newBorrowed,
-    remaining: newRemaining
-  })
-  .eq("title", item.title);
+.from("books")
+.update({
+borrowed_count: newBorrowed,
+remaining: newRemaining
+})
+.eq("title", item.title);
 
 if (updateError) {
-  console.log(updateError);
+console.log(updateError);
 }
 const time = new Date().toLocaleTimeString('en-PH', {
 timeZone: 'Asia/Manila',
@@ -1441,56 +1434,30 @@ Alert.alert("Success", "Book returned!");
 };
 
 const handleDelete = async (item) => {
-// Adjust book counts before deleting the borrow record
-try {
-  const { data: bookData, error: bookError } = await supabase
-    .from("books")
-    .select("borrowed_count, quantity, total_copies, remaining")
-    .eq("title", item.title)
-    .single();
+const { error } = await supabase
+.from("borrow_books")
+.delete()
+.eq("id", item.id);
 
-  if (!bookError && bookData) {
-    const currentBorrowed = bookData?.borrowed_count || 0;
-    const totalCopies = bookData?.total_copies ?? bookData?.quantity ?? 0;
-    const delta = item?.quantity || 1;
-    const newBorrowed = Math.max(0, currentBorrowed - delta);
-    const newRemaining = Math.max(0, totalCopies - newBorrowed);
+if (!error) {
+const time = new Date().toLocaleTimeString('en-PH', {
+timeZone: 'Asia/Manila',
+hour: "2-digit",
+minute: "2-digit",
+});
 
-    const { error: updateError } = await supabase
-      .from("books")
-      .update({ borrowed_count: newBorrowed, remaining: newRemaining })
-      .eq("title", item.title);
+setNotifications((prev) => [
+{
+type: "info",
+title: "Record Deleted",
+message: `Record for "${item.title}" has been removed`,
+time,
+},
+...prev,
+]);
 
-    if (updateError) console.log(updateError);
-  }
-
-  const { error } = await supabase
-    .from("borrow_books")
-    .delete()
-    .eq("id", item.id);
-
-  if (!error) {
-    const time = new Date().toLocaleTimeString('en-PH', {
-      timeZone: 'Asia/Manila',
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    setNotifications((prev) => [
-      {
-        type: "info",
-        title: "Record Deleted",
-        message: `Record for "${item.title}" has been removed`,
-        time,
-      },
-      ...prev,
-    ]);
-
-    fetchBorrowedBooks();
-    Alert.alert("Deleted", "Record removed");
-  }
-} catch (err) {
-  console.log(err);
+fetchBorrowedBooks();
+Alert.alert("Deleted", "Record removed");
 }
 };
 const formatDate = (dateString) => {
@@ -1713,7 +1680,7 @@ fontWeight: "700",
 },
 buttonRow: {
 flexDirection: "row",
-justifyContent: "space-between",
+gap: 8,
 marginTop: 16,
 },
 returnBtn: {
